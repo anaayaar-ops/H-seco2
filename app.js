@@ -13,42 +13,39 @@ const settings = {
 const service = new WOLF();
 
 service.on('ready', () => {
-    console.log("------------------------------------------");
-    console.log(`✅ البوت متصل: ${service.currentSubscriber.nickname}`);
-    console.log(`📡 يراقب البونص من: ${settings.targetBotId}`);
-    console.log("------------------------------------------");
+    console.log(`✅ البوت متصل باسم: ${service.currentSubscriber.nickname}`);
+    console.log(`👀 مراقبة الحساب: ${settings.targetBotId}`);
 });
 
-service.on('privateMessage', async (message) => {
-    const senderId = message.authorId || message.sourceSubscriberId;
-    const content = message.content || "";
-
-    // التحقق من أن الرسالة من الحساب المطلوب وتحتوي على كلمة Bonus أو Heist
-    if (senderId === settings.targetBotId && /bonus|heist|available/i.test(content)) {
+// استخدام حدث الرسالة العام لضمان عدم تفويت أي شيء
+service.on('message', async (message) => {
+    // التأكد أنها رسالة خاصة (Private) ومن الحساب المطلوب
+    if (!message.isGroup && message.sourceSubscriberId === settings.targetBotId) {
         
-        console.log(`📥 رسالة جديدة: ${content}`);
-
-        // استخراج أول رقم ID يظهر في الرسالة (وهو رقم الغرفة)
-        const match = content.match(/\(ID\s*(\d+)\)/);
+        // محاولة استخراج النص من أي مكان ممكن في الرسالة
+        const content = message.body || message.content || (message.embed ? message.embed.description : "") || "";
         
-        if (match && match[1]) {
-            const roomId = parseInt(match[1]);
-            console.log(`🎯 تم تحديد الغرفة: ${roomId}`);
+        console.log(`📩 وصل نص جديد: [${content}]`);
 
-            try {
-                // 1. الانضمام للغرفة أولاً (ضروري جداً إذا لم يكن البوت فيها)
-                await service.groups().join(roomId);
-                console.log(`✅ تم الانضمام للغرفة ${roomId}`);
+        // فحص وجود كلمة Bonus أو Heist أو available (تجاهل حالة الأحرف)
+        if (/bonus|heist|available|ID/i.test(content)) {
+            
+            // استخراج رقم الغرفة (أول ID يظهر)
+            const match = content.match(/\(ID\s*(\d+)\)/);
+            
+            if (match && match[1]) {
+                const roomId = parseInt(match[1]);
+                console.log(`🎯 هدف محدد! غرفة: ${roomId}`);
 
-                // 2. إرسال كلمة الصيد
-                await service.messaging().sendGroupMessage(roomId, settings.actionWord);
-                console.log(`🚀 تم إرسال [${settings.actionWord}] بنجاح!`);
-                
-            } catch (err) {
-                console.error(`❌ حدث خطأ: ${err.message}`);
+                try {
+                    // الانضمام والإرسال
+                    await service.groups().join(roomId);
+                    await service.messaging().sendGroupMessage(roomId, settings.actionWord);
+                    console.log(`🚀 تم الصيد بنجاح في ${roomId}`);
+                } catch (err) {
+                    console.error(`❌ فشل التنفيذ: ${err.message}`);
+                }
             }
-        } else {
-            console.log("⚠️ لم يتم العثور على ID الغرفة في النص.");
         }
     }
 });
