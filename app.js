@@ -8,9 +8,9 @@ const settings = {
     secret: process.env.U_PASS,
     targetBotId: 51660277, 
     actionWord: "صيد",
-    delayBetweenHeists: 11000,
-    workDuration: 54 * 60 * 1000, // 54 دقيقة عمل
-    restDuration: 6 * 60 * 1000   // 6 دقائق راحة
+    delayBetweenHeists: 11000,      // 11 ثانية بين كل صيد
+    workDuration: 54 * 60 * 1000,   // 54 دقيقة عمل
+    restDuration: 6 * 60 * 1000     // 6 دقائق راحة
 };
 
 const service = new WOLF();
@@ -18,7 +18,7 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 let heistQueue = [];
 let isProcessing = false;
-let isResting = false; // متغير جديد للتحكم في وضع الراحة
+let isResting = false;
 
 // دالة معالجة الطابور
 const processQueue = async () => {
@@ -32,47 +32,48 @@ const processQueue = async () => {
         console.log(`⏳ انتظار الاستراحة بين الصيد... الروم: ${roomId}`);
         await sleep(settings.delayBetweenHeists);
 
-        // إذا بدأت فترة الراحة أثناء الانتظار، نعيد الروم للطابور ونتوقف
         if (isResting) {
-            heistQueue.unshift(roomId);
+            heistQueue.unshift(roomId); // إعادة الروم للطابور إذا بدأت الراحة فجأة
             break;
         }
 
         try {
-            await service.groups.join(roomId).catch(() => {});
+            // تصحيح: استخدام group بدلاً من groups
+            await service.group.join(roomId).catch(() => {});
+            
             await service.messaging.sendGroupMessage(roomId, settings.actionWord);
-            console.log(`🚀 تم الصيد في [${roomId}]. المتبقي: ${heistQueue.length}`);
+            console.log(`🚀 [${new Date().toLocaleTimeString('ar-SA')}] تم الصيد في [${roomId}]. المتبقي: ${heistQueue.length}`);
         } catch (err) {
-            console.error(`❌ خطأ في الروم ${roomId}: ${err.message}`);
+            console.error(`❌ فشل الصيد في الروم ${roomId}: ${err.message}`);
         }
     }
 
     isProcessing = false;
 };
 
-// --- نظام إدارة الوقت (54/6) ---
+// نظام إدارة الوقت (54 دقيقة عمل / 6 دقائق راحة)
 const manageWorkCycle = async () => {
     while (true) {
         console.log("🟢 [نظام الوقت] بدأت دورة الـ 54 دقيقة عمل.");
         isResting = false;
-        processQueue(); // محاولة معالجة أي شيء عالق في الطابور
+        processQueue(); 
 
         await sleep(settings.workDuration);
 
-        console.log("🛑 [نظام الوقت] بدأت دورة الـ 6 دقائق راحة. يتوقف الصيد الآن.");
+        console.log("🛑 [نظام الوقت] بدأت دورة الـ 6 دقائق راحة. يتوقف الصيد مؤقتاً.");
         isResting = true;
-        // سيقوم processQueue بالتوقف تلقائياً بسبب شرط isResting
-
+        
         await sleep(settings.restDuration);
     }
 };
 
 service.on('ready', () => {
-    console.log(`✅ المتصل: ${service.currentSubscriber.nickname}`);
-    manageWorkCycle(); // بدء مراقبة الوقت فور الاتصال
+    console.log(`✅ البوت متصل: ${service.currentSubscriber.nickname}`);
+    manageWorkCycle(); 
 });
 
 service.on('message', async (message) => {
+    // التحقق من الرسائل الخاصة من البوت المستهدف
     if (!message.isGroup && (message.sourceSubscriberId === settings.targetBotId || message.authorId === settings.targetBotId)) {
         
         const content = message.body || message.content || "";
@@ -80,15 +81,14 @@ service.on('message', async (message) => {
         
         if (match && match[1]) {
             const roomId = parseInt(match[1]);
-            console.log(`📥 استلام روم جديد ${roomId}.`);
+            console.log(`📥 إضافة الروم ${roomId} إلى الطابور...`);
             
             heistQueue.push(roomId);
             
-            // لا يبدأ المعالجة إلا إذا لم نكن في وقت راحة
             if (!isResting) {
                 processQueue();
             } else {
-                console.log("⏳ نحن في وقت الراحة، سيتم الصيد فور انتهاء الـ 6 دقائق.");
+                console.log(`⏳ تم تخزين الروم ${roomId}؛ سيتم الصيد بعد انتهاء الـ 6 دقائق راحة.`);
             }
         }
     }
