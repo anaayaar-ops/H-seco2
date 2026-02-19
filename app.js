@@ -13,37 +13,43 @@ const settings = {
 const service = new WOLF();
 
 service.on('ready', () => {
-    console.log(`✅ البوت متصل باسم: ${service.currentSubscriber.nickname}`);
-    console.log(`👀 مراقبة الحساب: ${settings.targetBotId}`);
+    console.log(`✅ البوت متصل ومستعد: ${service.currentSubscriber.nickname}`);
 });
 
-// استخدام حدث الرسالة العام لضمان عدم تفويت أي شيء
 service.on('message', async (message) => {
-    // التأكد أنها رسالة خاصة (Private) ومن الحساب المطلوب
+    // التأكد أنها رسالة خاصة ومن الحساب المطلوب
     if (!message.isGroup && message.sourceSubscriberId === settings.targetBotId) {
         
-        // محاولة استخراج النص من أي مكان ممكن في الرسالة
-        const content = message.body || message.content || (message.embed ? message.embed.description : "") || "";
-        
+        const content = message.body || message.content || "";
         console.log(`📩 وصل نص جديد: [${content}]`);
 
-        // فحص وجود كلمة Bonus أو Heist أو available (تجاهل حالة الأحرف)
-        if (/bonus|heist|available|ID/i.test(content)) {
-            
-            // استخراج رقم الغرفة (أول ID يظهر)
+        if (content.includes("ID")) {
+            // استخراج أول ID (رقم الغرفة)
             const match = content.match(/\(ID\s*(\d+)\)/);
             
             if (match && match[1]) {
                 const roomId = parseInt(match[1]);
-                console.log(`🎯 هدف محدد! غرفة: ${roomId}`);
+                console.log(`🎯 محاولة الصيد في الروم: ${roomId}`);
 
                 try {
-                    // الانضمام والإرسال
-                    await service.groups().join(roomId);
+                    // تصحيح طريقة الانضمام: استخدام () بعد group أو استدعاء مباشر حسب الإصدار
+                    if (typeof service.group === 'function') {
+                        await service.group().join(roomId);
+                    } else if (service.groups && typeof service.groups().join === 'function') {
+                        await service.groups().join(roomId);
+                    }
+
+                    // تصحيح طريقة الإرسال
                     await service.messaging().sendGroupMessage(roomId, settings.actionWord);
-                    console.log(`🚀 تم الصيد بنجاح في ${roomId}`);
+                    
+                    console.log(`🚀 تم الانضمام والإرسال بنجاح في [${roomId}]`);
                 } catch (err) {
-                    console.error(`❌ فشل التنفيذ: ${err.message}`);
+                    console.error(`❌ فشل أثناء التنفيذ: ${err.message}`);
+                    
+                    // محاولة أخيرة للإرسال مباشرة في حال كان البوت بالروم أصلاً
+                    try {
+                        await service.messaging().sendGroupMessage(roomId, settings.actionWord);
+                    } catch (e) {}
                 }
             }
         }
