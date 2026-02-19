@@ -8,7 +8,7 @@ const settings = {
     secret: process.env.U_PASS,
     targetBotId: 51660277, 
     actionWord: "صيد",
-    delayBetweenHeists: 11000,      // 11 ثانية بين كل صيد
+    delayBetweenHeists: 11000,      // 11 ثانية فاصل بين الصيد
     workDuration: 54 * 60 * 1000,   // 54 دقيقة عمل
     restDuration: 6 * 60 * 1000     // 6 دقائق راحة
 };
@@ -20,7 +20,7 @@ let heistQueue = [];
 let isProcessing = false;
 let isResting = false;
 
-// دالة معالجة الطابور
+// دالة معالجة الطابور مع نظام فحص التوافق التلقائي
 const processQueue = async () => {
     if (isProcessing || heistQueue.length === 0 || isResting) return;
 
@@ -33,16 +33,23 @@ const processQueue = async () => {
         await sleep(settings.delayBetweenHeists);
 
         if (isResting) {
-            heistQueue.unshift(roomId); // إعادة الروم للطابور إذا بدأت الراحة فجأة
+            heistQueue.unshift(roomId); 
             break;
         }
 
         try {
-            // تصحيح: استخدام group بدلاً من groups
-            await service.group.join(roomId).catch(() => {});
-            
+            // نظام فحص إصدار المكتبة للانضمام للروم
+            if (service.groups && typeof service.groups.join === 'function') {
+                await service.groups.join(roomId).catch(() => {});
+            } else if (service.group && typeof service.group.join === 'function') {
+                await service.group.join(roomId).catch(() => {});
+            } else if (typeof service.joinGroup === 'function') {
+                await service.joinGroup(roomId).catch(() => {});
+            }
+
+            // إرسال رسالة الصيد
             await service.messaging.sendGroupMessage(roomId, settings.actionWord);
-            console.log(`🚀 [${new Date().toLocaleTimeString('ar-SA')}] تم الصيد في [${roomId}]. المتبقي: ${heistQueue.length}`);
+            console.log(`🚀 [${new Date().toLocaleTimeString('ar-SA')}] تم الصيد في [${roomId}]. المتبقي في الطابور: ${heistQueue.length}`);
         } catch (err) {
             console.error(`❌ فشل الصيد في الروم ${roomId}: ${err.message}`);
         }
@@ -51,7 +58,7 @@ const processQueue = async () => {
     isProcessing = false;
 };
 
-// نظام إدارة الوقت (54 دقيقة عمل / 6 دقائق راحة)
+// نظام إدارة الوقت (54/6)
 const manageWorkCycle = async () => {
     while (true) {
         console.log("🟢 [نظام الوقت] بدأت دورة الـ 54 دقيقة عمل.");
@@ -68,12 +75,12 @@ const manageWorkCycle = async () => {
 };
 
 service.on('ready', () => {
-    console.log(`✅ البوت متصل: ${service.currentSubscriber.nickname}`);
+    console.log(`✅ البوت متصل بنجاح: ${service.currentSubscriber.nickname}`);
     manageWorkCycle(); 
 });
 
 service.on('message', async (message) => {
-    // التحقق من الرسائل الخاصة من البوت المستهدف
+    // التقاط رسائل الصيد من البوت المستهدف
     if (!message.isGroup && (message.sourceSubscriberId === settings.targetBotId || message.authorId === settings.targetBotId)) {
         
         const content = message.body || message.content || "";
@@ -88,7 +95,7 @@ service.on('message', async (message) => {
             if (!isResting) {
                 processQueue();
             } else {
-                console.log(`⏳ تم تخزين الروم ${roomId}؛ سيتم الصيد بعد انتهاء الـ 6 دقائق راحة.`);
+                console.log(`⏳ استراحة حالياً. سيتم معالجة الروم ${roomId} فور العودة للعمل.`);
             }
         }
     }
