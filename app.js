@@ -8,52 +8,71 @@ const settings = {
     secret: process.env.U_PASS,
     targetBotId: 51660277, 
     actionWord: "صيد",
-    delayBetweenHeists: 11000 // 11 ثانية فاصل بين كل صيد وصيد
+    delayBetweenHeists: 11000,
+    workDuration: 54 * 60 * 1000, // 54 دقيقة عمل
+    restDuration: 6 * 60 * 1000   // 6 دقائق راحة
 };
 
 const service = new WOLF();
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// مصفوفة لتخزين المهام (الطابور)
 let heistQueue = [];
 let isProcessing = false;
+let isResting = false; // متغير جديد للتحكم في وضع الراحة
 
 // دالة معالجة الطابور
 const processQueue = async () => {
-    if (isProcessing || heistQueue.length === 0) return;
+    if (isProcessing || heistQueue.length === 0 || isResting) return;
 
     isProcessing = true;
 
-    while (heistQueue.length > 0) {
-        const roomId = heistQueue.shift(); // سحب أول غرفة في الطابور
+    while (heistQueue.length > 0 && !isResting) {
+        const roomId = heistQueue.shift();
         
-        console.log(`⏳ انتظار ${settings.delayBetweenHeists / 1000} ثانية قبل الصيد في الروم: ${roomId}`);
+        console.log(`⏳ انتظار الاستراحة بين الصيد... الروم: ${roomId}`);
         await sleep(settings.delayBetweenHeists);
 
-        try {
-            // الدخول للروم
-            try {
-                await service.groups.join(roomId);
-            } catch (e) { /* تجاهل خطأ الدخول إذا كان البوت موجوداً أصلاً */ }
+        // إذا بدأت فترة الراحة أثناء الانتظار، نعيد الروم للطابور ونتوقف
+        if (isResting) {
+            heistQueue.unshift(roomId);
+            break;
+        }
 
-            // إرسال الكلمة
+        try {
+            await service.groups.join(roomId).catch(() => {});
             await service.messaging.sendGroupMessage(roomId, settings.actionWord);
-            console.log(`🚀 تم الصيد بنجاح في [${roomId}]. المتبقي في الطابور: ${heistQueue.length}`);
+            console.log(`🚀 تم الصيد في [${roomId}]. المتبقي: ${heistQueue.length}`);
         } catch (err) {
-            console.error(`❌ فشل الصيد في الروم ${roomId}: ${err.message}`);
+            console.error(`❌ خطأ في الروم ${roomId}: ${err.message}`);
         }
     }
 
     isProcessing = false;
-    console.log("✅ انتهى الطابور، البوت في وضع الاستعداد...");
+};
+
+// --- نظام إدارة الوقت (54/6) ---
+const manageWorkCycle = async () => {
+    while (true) {
+        console.log("🟢 [نظام الوقت] بدأت دورة الـ 54 دقيقة عمل.");
+        isResting = false;
+        processQueue(); // محاولة معالجة أي شيء عالق في الطابور
+
+        await sleep(settings.workDuration);
+
+        console.log("🛑 [نظام الوقت] بدأت دورة الـ 6 دقائق راحة. يتوقف الصيد الآن.");
+        isResting = true;
+        // سيقوم processQueue بالتوقف تلقائياً بسبب شرط isResting
+
+        await sleep(settings.restDuration);
+    }
 };
 
 service.on('ready', () => {
-    console.log(`✅ البوت متصل بنظام الطابور: ${service.currentSubscriber.nickname}`);
+    console.log(`✅ المتصل: ${service.currentSubscriber.nickname}`);
+    manageWorkCycle(); // بدء مراقبة الوقت فور الاتصال
 });
 
 service.on('message', async (message) => {
-    // التحقق من الرسالة الخاصة من المصدر المطلوب
     if (!message.isGroup && (message.sourceSubscriberId === settings.targetBotId || message.authorId === settings.targetBotId)) {
         
         const content = message.body || message.content || "";
@@ -61,13 +80,16 @@ service.on('message', async (message) => {
         
         if (match && match[1]) {
             const roomId = parseInt(match[1]);
-            console.log(`📥 إضافة الروم ${roomId} إلى الطابور...`);
+            console.log(`📥 استلام روم جديد ${roomId}.`);
             
-            // إضافة رقم الروم للطابور
             heistQueue.push(roomId);
             
-            // بدء معالجة الطابور (إذا لم يكن يعمل حالياً)
-            processQueue();
+            // لا يبدأ المعالجة إلا إذا لم نكن في وقت راحة
+            if (!isResting) {
+                processQueue();
+            } else {
+                console.log("⏳ نحن في وقت الراحة، سيتم الصيد فور انتهاء الـ 6 دقائق.");
+            }
         }
     }
 });
