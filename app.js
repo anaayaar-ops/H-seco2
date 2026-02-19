@@ -17,40 +17,34 @@ service.on('ready', () => {
 });
 
 service.on('message', async (message) => {
-    // التأكد أنها رسالة خاصة ومن الحساب المطلوب
-    if (!message.isGroup && message.sourceSubscriberId === settings.targetBotId) {
+    // التحقق من الرسالة الخاصة من المصدر المطلوب
+    if (!message.isGroup && (message.sourceSubscriberId === settings.targetBotId || message.authorId === settings.targetBotId)) {
         
         const content = message.body || message.content || "";
         console.log(`📩 وصل نص جديد: [${content}]`);
 
-        if (content.includes("ID")) {
-            // استخراج أول ID (رقم الغرفة)
-            const match = content.match(/\(ID\s*(\d+)\)/);
-            
-            if (match && match[1]) {
-                const roomId = parseInt(match[1]);
-                console.log(`🎯 محاولة الصيد في الروم: ${roomId}`);
+        // البحث عن المعرف (ID) داخل الأقواس
+        const match = content.match(/\(ID\s*(\d+)\)/);
+        
+        if (match && match[1]) {
+            const roomId = parseInt(match[1]);
+            console.log(`🎯 محاولة الصيد في الروم: ${roomId}`);
 
-                try {
-                    // تصحيح طريقة الانضمام: استخدام () بعد group أو استدعاء مباشر حسب الإصدار
-                    if (typeof service.group === 'function') {
-                        await service.group().join(roomId);
-                    } else if (service.groups && typeof service.groups().join === 'function') {
-                        await service.groups().join(roomId);
-                    }
+            try {
+                // محاولة الانضمام للغرفة (استدعاء مباشر للمقطع)
+                await service.groups.join(roomId);
+                console.log(`✅ تم الانضمام للروم ${roomId}`);
+            } catch (joinErr) {
+                // إذا فشل الانضمام ربما البوت موجود بالفعل، نكمل للإرسال
+                console.log(`ℹ️ تنبيه عند الانضمام: ${joinErr.message}`);
+            }
 
-                    // تصحيح طريقة الإرسال
-                    await service.messaging().sendGroupMessage(roomId, settings.actionWord);
-                    
-                    console.log(`🚀 تم الانضمام والإرسال بنجاح في [${roomId}]`);
-                } catch (err) {
-                    console.error(`❌ فشل أثناء التنفيذ: ${err.message}`);
-                    
-                    // محاولة أخيرة للإرسال مباشرة في حال كان البوت بالروم أصلاً
-                    try {
-                        await service.messaging().sendGroupMessage(roomId, settings.actionWord);
-                    } catch (e) {}
-                }
+            try {
+                // محاولة الإرسال (استدعاء مباشر للمقطع دون أقواس)
+                await service.messaging.sendGroupMessage(roomId, settings.actionWord);
+                console.log(`🚀 تم إرسال [${settings.actionWord}] بنجاح!`);
+            } catch (sendErr) {
+                console.error(`❌ فشل الإرسال النهائي: ${sendErr.message}`);
             }
         }
     }
