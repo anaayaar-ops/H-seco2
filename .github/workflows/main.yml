@@ -1,0 +1,67 @@
+name: Continuous Bot Runner
+
+on:
+  schedule:
+    # المواعيد بتوقيت مكة (UTC+3):
+    # 02:00 UTC = 05:00 AM مكة (بداية العمل)
+    # 09:00 UTC = 12:00 PM مكة (العودة بعد الراحة)
+    # 13:00 UTC = 04:00 PM مكة
+    # 17:00 UTC = 08:00 PM مكة
+    # 21:00 UTC = 12:00 AM مكة
+    - cron: '0 2,9,13,17,21 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: wolf-bot-running
+  # يغلق النسخة القديمة فور بدء نسخة جديدة لمنع التداخل
+  cancel-in-progress: true 
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    # مهلة كافية لتغطية دورة التشغيل (4 ساعات و 10 دقائق)
+    timeout-minutes: 250 
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Execution Logic
+        env:
+          U_MAIL: ${{ secrets.U_MAIL }}
+          U_PASS: ${{ secrets.U_PASS }}
+          ENTRY_P: ${{ secrets.ENTRY_P }}
+          EXIT_P: ${{ secrets.EXIT_P }}
+          MATCH_V: ${{ secrets.MATCH_V }}
+          EXEC_V: ${{ secrets.EXEC_V }}
+        run: |
+          # الحصول على الساعة الحالية بتوقيت مكة (UTC+3)
+          HOUR=$(date -u -d "+3 hours" +%H)
+          
+          echo "⏰ الساعة الآن بتوقيت مكة المكرمة: $HOUR"
+
+          # نظام الراحة: التوقف الإجباري إذا كانت الساعة بين 9 صباحاً و 12 ظهراً
+          if [ "$HOUR" -ge 9 ] && [ "$HOUR" -lt 12 ]; then
+            echo "💤 توقيت الراحة (9 AM - 12 PM). السيرفر سيبقى خاملاً."
+            exit 0
+          fi
+          
+          echo "🚀 بدء التشغيل الدورة الحالية..."
+          
+          # تشغيل البوت في الخلفية
+          npm start & 
+          BOT_PID=$!
+          
+          # الانتظار لمدة 4 ساعات (14400 ثانية) حتى موعد الدورة القادمة
+          sleep 14400 
+          
+          echo "🛑 انتهت دورة العمل، جاري التجهيز للدورة القادمة..."
+          kill $BOT_PID || true
