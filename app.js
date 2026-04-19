@@ -5,8 +5,8 @@ const { WOLF } = wolfjs;
 const settings = {
     identity: process.env.U_MAIL,
     secret: process.env.U_PASS,
-    targetRoomId: 9969, // الروم الذي سيتم إرسال الأمر فيه
-    monitorId: 80055399 // العضوية المستهدفة للمراقبة (الخاص)
+    targetRoomId: 224, // الروم الذي سيتم إرسال الأمر فيه
+    monitorId: 76023180 // العضوية المستهدفة للمراقبة (الخاص)
 };
 
 const service = new WOLF();
