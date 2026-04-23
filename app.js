@@ -7,7 +7,7 @@ const settings = {
     identity: process.env.U_MAIL,
     secret: process.env.U_PASS,
     targetBotId: 76305584 , 
-    actionWord: "!صياد اوروبا ٣",
+    actionWord: "!صياد اسيا 3",
     delayBetweenHeists: 11000,      // 11 ثانية فاصل بين الصيد
     workDuration: 54 * 60 * 1000,   // 54 دقيقة عمل
     restDuration: 6 * 60 * 1000     // 6 دقائق راحة
