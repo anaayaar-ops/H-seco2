@@ -1,56 +1,104 @@
 import 'dotenv/config';
 import wolfjs from 'wolf.js';
+
 const { WOLF } = wolfjs;
 
 const settings = {
     identity: process.env.U_MAIL,
     secret: process.env.U_PASS,
-    targetRoomId: 224, // الروم الذي سيتم إرسال الأمر فيه
-    monitorId: 76023180 // العضوية المستهدفة للمراقبة (الخاص)
+    targetBotId: 76305584 , 
+    actionWord: "!صياد اوروبا ٣",
+    delayBetweenHeists: 11000,      // 11 ثانية فاصل بين الصيد
+    workDuration: 54 * 60 * 1000,   // 54 دقيقة عمل
+    restDuration: 6 * 60 * 1000     // 6 دقائق راحة
 };
 
 const service = new WOLF();
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- محرك المراقبة والاستخراج ---
-service.on('message', async (message) => {
-    try {
-        // التأكد من أن الرسالة خاصة ومن العضوية المطلوبة فقط
-        if (!message.isGroup && (message.sourceSubscriberId === settings.monitorId || message.authorId === settings.monitorId)) {
-            
-            const content = message.body || "";
-            
-            // البحث عن نمط رسالة الهجوم واستخراج ما بين علامات التنصيص
-            // التعبير النمطي يبحث عن النص المحصور بين " " بدقة
-            const attackMatch = content.match(/تعرضتم لهجوم من "([^"]+)"/);
-            
-            if (attackMatch && attackMatch[1]) {
-                const attackerName = attackMatch[1]; // الاسم بالزخرفة والتشكيل كما هو
-                
-                console.log(`🎯 تم رصد هجوم! المهاجم: ${attackerName}`);
-                
-                // صياغة الأمر المطلوب
-                const command = `!مد تحالف حالة ${attackerName}`;
-                
-                // إرسال الأمر إلى الروم المحدد
-                await service.messaging.sendGroupMessage(settings.targetRoomId, command);
-                
-                console.log(`🚀 تم إرسال الأمر بنجاح في روم ${settings.targetRoomId}`);
-            }
+let heistQueue = [];
+let isProcessing = false;
+let isResting = false;
+
+// دالة معالجة الطابور مع نظام فحص التوافق التلقائي
+const processQueue = async () => {
+    if (isProcessing || heistQueue.length === 0 || isResting) return;
+
+    isProcessing = true;
+
+    while (heistQueue.length > 0 && !isResting) {
+        const roomId = heistQueue.shift();
+        
+        console.log(`⏳ انتظار الاستراحة بين الصيد... الروم: ${roomId}`);
+        await sleep(settings.delayBetweenHeists);
+
+        if (isResting) {
+            heistQueue.unshift(roomId); 
+            break;
         }
-    } catch (err) {
-        console.error("❌ خطأ أثناء معالجة الرسالة:", err.message);
+
+        try {
+            // نظام فحص إصدار المكتبة للانضمام للروم
+            if (service.groups && typeof service.groups.join === 'function') {
+                await service.groups.join(roomId).catch(() => {});
+            } else if (service.group && typeof service.group.join === 'function') {
+                await service.group.join(roomId).catch(() => {});
+            } else if (typeof service.joinGroup === 'function') {
+                await service.joinGroup(roomId).catch(() => {});
+            }
+
+            // إرسال رسالة الصيد
+            await service.messaging.sendGroupMessage(roomId, settings.actionWord);
+            console.log(`🚀 [${new Date().toLocaleTimeString('ar-SA')}] تم الصيد في [${roomId}]. المتبقي في الطابور: ${heistQueue.length}`);
+        } catch (err) {
+            console.error(`❌ فشل الصيد في الروم ${roomId}: ${err.message}`);
+        }
     }
+
+    isProcessing = false;
+};
+
+// نظام إدارة الوقت (54/6)
+const manageWorkCycle = async () => {
+    while (true) {
+        console.log("🟢 [نظام الوقت] بدأت دورة الـ 54 دقيقة عمل.");
+        isResting = false;
+        processQueue(); 
+
+        await sleep(settings.workDuration);
+
+        console.log("🛑 [نظام الوقت] بدأت دورة الـ 6 دقائق راحة. يتوقف الصيد مؤقتاً.");
+        isResting = true;
+        
+        await sleep(settings.restDuration);
+    }
+};
+
+service.on('ready', () => {
+    console.log(`✅ البوت متصل بنجاح: ${service.currentSubscriber.nickname}`);
+    manageWorkCycle(); 
 });
 
-// --- إعدادات الاتصال ---
-service.on('ready', () => {
-    console.log(`✅ البوت متصل باسم: ${service.currentSubscriber.nickname}`);
-    console.log(`👀 نظام المراقبة نشط للعضوية: ${settings.monitorId}`);
-    
-    // الانضمام للروم المستهدف لضمان القدرة على الإرسال
-    service.group.joinById(settings.targetRoomId)
-        .then(() => console.log(`🔗 متصل بروم العمليات: ${settings.targetRoomId}`))
-        .catch(() => console.log(`⚠️ فشل الانضمام للروم ${settings.targetRoomId}، تأكد من أن البوت غير محظور.`));
+service.on('message', async (message) => {
+    // التقاط رسائل الصيد من البوت المستهدف
+    if (!message.isGroup && (message.sourceSubscriberId === settings.targetBotId || message.authorId === settings.targetBotId)) {
+        
+        const content = message.body || message.content || "";
+        const match = content.match(/\(ID\s*(\d+)\)/);
+        
+        if (match && match[1]) {
+            const roomId = parseInt(match[1]);
+            console.log(`📥 إضافة الروم ${roomId} إلى الطابور...`);
+            
+            heistQueue.push(roomId);
+            
+            if (!isResting) {
+                processQueue();
+            } else {
+                console.log(`⏳ استراحة حالياً. سيتم معالجة الروم ${roomId} فور العودة للعمل.`);
+            }
+        }
+    }
 });
 
 service.login(settings.identity, settings.secret);
