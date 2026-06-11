@@ -6,7 +6,7 @@ const { WOLF } = wolfjs;
 const settings = {
     identity: process.env.U_MAIL,
     secret: process.env.U_PASS,
-    targetBotId: 39369782 , 
+    targetBotId: 51660277 , 
     actionWord: "!اسرق 5",
     delayBetweenHeists: 11000,      // 11 ثانية فاصل بين الصيد
     workDuration: 54 * 60 * 1000,   // 54 دقيقة عمل
@@ -84,7 +84,12 @@ service.on('message', async (message) => {
     if (!message.isGroup && (message.sourceSubscriberId === settings.targetBotId || message.authorId === settings.targetBotId)) {
         
         const content = message.body || message.content || "";
-        const match = content.match(/\(ID\s*(\d+)\)/);
+        
+        // تقسيم النص عند كلمات الفصل (إلى أو thanks to) لنأخذ الجزء الخاص بالقناة فقط
+        const channelPart = content.split(/thanks to|إلى/i)[0];
+        
+        // البحث عن معرف الروم فقط داخل الجزء الأول من الرسالة
+        const match = channelPart.match(/\((?:[^0-9]*?)(\d+)\)/);
         
         if (match && match[1]) {
             const roomId = parseInt(match[1]);
