@@ -85,9 +85,13 @@ service.on('message', async (message) => {
         
         const content = message.body || message.content || "";
         
-        // Regex يشرح: يبحث عن قوس ( ، ثم اختيارياً كلمة ID مع مسافة، ثم الرقم، ثم قوس )
-        // سيقوم باستخراج أول تطابق فقط ويتجاهل ما بعده
-        const match = content.match(/\(\s*(?:ID\s*)?(\d+)\s*\)/);
+        // المحاولة الأولى: البحث بالطريقة الإنجليزية (ID + رقم)
+        let match = content.match(/\(ID\s*(\d+)\)/);
+        
+        // إذا لم يجد شيئاً، المحاولة الثانية: البحث بالطريقة العربية (أقواس مربعة ثم دائري)
+        if (!match) {
+            match = content.match(/\[.*?\]\s*\(\s*(\d+)/);
+        }
         
         if (match && match[1]) {
             const roomId = parseInt(match[1]);
