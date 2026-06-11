@@ -1,4 +1,4 @@
-import 'dotenv/config';
+Import 'dotenv/config';
 import wolfjs from 'wolf.js';
 
 const { WOLF } = wolfjs;
@@ -84,9 +84,7 @@ service.on('message', async (message) => {
     if (!message.isGroup && (message.sourceSubscriberId === settings.targetBotId || message.authorId === settings.targetBotId)) {
         
         const content = message.body || message.content || "";
-        
-        // استخراج أول معرف يظهر بين قوسين فقط (تجاهل الباقي تلقائياً)
-        const match = content.match(/\((?:[^0-9]*?)(\d+)\)/);
+        const match = content.match(/\(ID\s*(\d+)\)/);
         
         if (match && match[1]) {
             const roomId = parseInt(match[1]);
@@ -104,3 +102,6 @@ service.on('message', async (message) => {
 });
 
 service.login(settings.identity, settings.secret);
+
+
+لا تغير اي شي بالكود لك اطلبه منك انا
