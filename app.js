@@ -1,4 +1,4 @@
-Import 'dotenv/config';
+import 'dotenv/config';
 import wolfjs from 'wolf.js';
 
 const { WOLF } = wolfjs;
@@ -84,7 +84,10 @@ service.on('message', async (message) => {
     if (!message.isGroup && (message.sourceSubscriberId === settings.targetBotId || message.authorId === settings.targetBotId)) {
         
         const content = message.body || message.content || "";
-        const match = content.match(/\(ID\s*(\d+)\)/);
+        
+        // Regex يشرح: يبحث عن قوس ( ، ثم اختيارياً كلمة ID مع مسافة، ثم الرقم، ثم قوس )
+        // سيقوم باستخراج أول تطابق فقط ويتجاهل ما بعده
+        const match = content.match(/\(\s*(?:ID\s*)?(\d+)\s*\)/);
         
         if (match && match[1]) {
             const roomId = parseInt(match[1]);
@@ -102,6 +105,3 @@ service.on('message', async (message) => {
 });
 
 service.login(settings.identity, settings.secret);
-
-
-لا تغير اي شي بالكود لك اطلبه منك انا
