@@ -85,11 +85,8 @@ service.on('message', async (message) => {
         
         const content = message.body || message.content || "";
         
-        // تقسيم النص عند كلمات الفصل (إلى أو thanks to) لنأخذ الجزء الخاص بالقناة فقط
-        const channelPart = content.split(/thanks to|إلى/i)[0];
-        
-        // البحث عن معرف الروم فقط داخل الجزء الأول من الرسالة
-        const match = channelPart.match(/\((?:[^0-9]*?)(\d+)\)/);
+        // استخراج أول معرف يظهر بين قوسين فقط (تجاهل الباقي تلقائياً)
+        const match = content.match(/\((?:[^0-9]*?)(\d+)\)/);
         
         if (match && match[1]) {
             const roomId = parseInt(match[1]);
