@@ -6,7 +6,7 @@ const { WOLF } = wolfjs;
 const settings = {
     identity: process.env.U_MAIL,
     secret: process.env.U_PASS,
-    targetBotId: 51660277 , 
+    targetBotId: 39369782 , 
     actionWord: "!اسرق 5",
     delayBetweenHeists: 11000,      // 11 ثانية فاصل بين الصيد
     workDuration: 54 * 60 * 1000,   // 54 دقيقة عمل
